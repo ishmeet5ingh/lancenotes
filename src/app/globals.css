@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  background: #f6f8fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f5f7fa;
+  color: #172033;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.focus-ring {
+  @apply outline-none ring-2 ring-transparent transition focus:ring-brand/30;
+}
+
+.field {
+  @apply focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink shadow-sm placeholder:text-slate-400;
+}
+
+.label {
+  @apply text-xs font-semibold uppercase text-slate-500;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-md bg-ink px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-900 hover:shadow-soft;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 rounded-md border border-line bg-white px-3.5 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-slate-300 hover:bg-slate-50;
+}
+
+.surface {
+  @apply rounded-md border border-line bg-white shadow-sm;
+}
+
+.subtle-grid {
+  background-image: linear-gradient(rgba(23, 32, 51, 0.035) 1px, transparent 1px);
+  background-size: 100% 36px;
+}
