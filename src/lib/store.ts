@@ -377,6 +377,82 @@ export async function createUser(input: { username: string; password: string; di
   return sanitizeUser(user);
 }
 
+export async function changeOwnPassword(userId: string, currentPassword: string, nextPassword: string): Promise<boolean> {
+  await ensureDefaultAdmin();
+  ensurePassword(nextPassword);
+
+  if (isFirebaseStorageEnabled()) {
+    const users = await readFirebaseUsers();
+    const user = users.find((item) => item._id === userId);
+    if (!user) return false;
+    if (!verifyPassword(currentPassword, user.passwordHash)) {
+      throw new Error("Current password is incorrect");
+    }
+
+    user.passwordHash = hashPassword(nextPassword);
+    user.updatedAt = nowIso();
+    await writeFirebaseUsers(users);
+    return true;
+  }
+
+  const mongo = await runMongo(async () => {
+    const user = await UserModel.findById(userId);
+    if (!user) return null;
+    const passwordHash = user.get("passwordHash") as string;
+    if (!verifyPassword(currentPassword, passwordHash)) {
+      throw new Error("Current password is incorrect");
+    }
+    user.set("passwordHash", hashPassword(nextPassword));
+    await user.save();
+    return true;
+  });
+  if (mongo !== null) return Boolean(mongo);
+
+  const users = await readLocalUsers();
+  const user = users.find((item) => item._id === userId);
+  if (!user) return false;
+  if (!verifyPassword(currentPassword, user.passwordHash)) {
+    throw new Error("Current password is incorrect");
+  }
+
+  user.passwordHash = hashPassword(nextPassword);
+  user.updatedAt = nowIso();
+  await writeLocalUsers(users);
+  return true;
+}
+
+export async function resetUserPassword(userId: string, nextPassword: string): Promise<User | null> {
+  await ensureDefaultAdmin();
+  ensurePassword(nextPassword);
+
+  if (isFirebaseStorageEnabled()) {
+    const users = await readFirebaseUsers();
+    const user = users.find((item) => item._id === userId);
+    if (!user) return null;
+    user.passwordHash = hashPassword(nextPassword);
+    user.updatedAt = nowIso();
+    await writeFirebaseUsers(users);
+    return sanitizeUser(user);
+  }
+
+  const mongo = await runMongo(async () => {
+    const user = await UserModel.findById(userId);
+    if (!user) return null;
+    user.set("passwordHash", hashPassword(nextPassword));
+    await user.save();
+    return user.toObject();
+  });
+  if (mongo) return sanitizeUser(normalize(mongo) as unknown as StoredUser);
+
+  const users = await readLocalUsers();
+  const user = users.find((item) => item._id === userId);
+  if (!user) return null;
+  user.passwordHash = hashPassword(nextPassword);
+  user.updatedAt = nowIso();
+  await writeLocalUsers(users);
+  return sanitizeUser(user);
+}
+
 export async function listProjects(): Promise<Project[]> {
   if (isFirebaseStorageEnabled()) {
     const projects = await readFirebaseProjects();

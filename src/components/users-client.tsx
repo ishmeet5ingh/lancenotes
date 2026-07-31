@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileText, Loader2, Search, UserRound } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, FileText, KeyRound, Loader2, Search, UserRound } from "lucide-react";
 import { EmptyState } from "./empty-state";
 import { friendlyDateTime } from "@/lib/format";
 import type { Project, User } from "@/lib/types";
@@ -14,6 +14,10 @@ export function UsersClient() {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [search, setSearch] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   useEffect(() => {
     fetch("/api/users")
@@ -45,6 +49,29 @@ export function UsersClient() {
   }, [search, users]);
 
   const selectedUser = users.find((user) => user._id === selectedUserId);
+
+  async function resetSelectedPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedUser) return;
+
+    setResetSaving(true);
+    setResetMessage("");
+    const response = await fetch(`/api/users/${selectedUser._id}/password`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ newPassword: resetPassword })
+    });
+    const data = (await response.json().catch(() => ({ error: "Unable to reset password" }))) as { error?: string };
+    setResetSaving(false);
+
+    if (!response.ok) {
+      setResetMessage(data.error ?? "Unable to reset password");
+      return;
+    }
+
+    setResetPassword("");
+    setResetMessage("Password reset.");
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -109,6 +136,39 @@ export function UsersClient() {
               <p className="mt-0.5 text-xs font-semibold text-slate-500">{projects.length} private note spaces</p>
             </div>
           </div>
+          {selectedUser ? (
+            <form onSubmit={resetSelectedPassword} className="flex flex-col gap-2 border-b border-line bg-slate-50 px-4 py-3 sm:flex-row sm:items-end">
+              <label className="min-w-0 flex-1 space-y-1.5">
+                <span className="label">Reset password</span>
+                <span className="relative block">
+                  <input
+                    className="field py-2 pr-10"
+                    type={showResetPassword ? "text" : "password"}
+                    value={resetPassword}
+                    onChange={(event) => {
+                      setResetPassword(event.target.value);
+                      setResetMessage("");
+                    }}
+                    placeholder="New password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword((current) => !current)}
+                    className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-ink"
+                    title={showResetPassword ? "Hide password" : "Show password"}
+                  >
+                    {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </span>
+              </label>
+              <button className="btn-secondary shrink-0 px-3 py-2" disabled={resetSaving}>
+                {resetSaving ? <Loader2 className="animate-spin" size={15} /> : <KeyRound size={15} />}
+                Reset
+              </button>
+              {resetMessage ? <p className="text-sm font-semibold text-slate-600 sm:pb-2">{resetMessage}</p> : null}
+            </form>
+          ) : null}
 
           {loadingProjects ? (
             <div className="grid h-64 place-items-center">

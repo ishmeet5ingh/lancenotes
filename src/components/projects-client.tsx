@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, FileText, FolderInput, Loader2, Plus, Search, Shield, UserPlus, X } from "lucide-react";
+import { Check, Eye, EyeOff, FileText, FolderInput, Loader2, Plus, Search, Shield, UserPlus, X } from "lucide-react";
 import { EmptyState } from "./empty-state";
 import { friendlyDateTime } from "@/lib/format";
 import type { AuthUser, Project, User } from "@/lib/types";
@@ -27,6 +27,7 @@ export function ProjectsClient() {
   const [newUserId, setNewUserId] = useState("");
   const [newUserName, setNewUserName] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
+  const [showNewUserPassword, setShowNewUserPassword] = useState(false);
 
   useEffect(() => {
     fetch("/api/projects")
@@ -390,14 +391,24 @@ export function ProjectsClient() {
               <form onSubmit={createSharedUser} className="grid gap-2 rounded-md border border-line bg-cloud p-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
                 <input className="field py-2" placeholder="user-id" value={newUserId} onChange={(event) => setNewUserId(event.target.value)} required />
                 <input className="field py-2" placeholder="Name" value={newUserName} onChange={(event) => setNewUserName(event.target.value)} />
-                <input
-                  className="field py-2"
-                  placeholder="Password"
-                  type="password"
-                  value={newUserPassword}
-                  onChange={(event) => setNewUserPassword(event.target.value)}
-                  required
-                />
+                <span className="relative block">
+                  <input
+                    className="field py-2 pr-10"
+                    placeholder="Password"
+                    type={showNewUserPassword ? "text" : "password"}
+                    value={newUserPassword}
+                    onChange={(event) => setNewUserPassword(event.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewUserPassword((current) => !current)}
+                    className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-ink"
+                    title={showNewUserPassword ? "Hide password" : "Show password"}
+                  >
+                    {showNewUserPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </span>
                 <button className="btn-primary px-3 py-2" disabled={creatingUser}>
                   {creatingUser ? <Loader2 className="animate-spin" size={15} /> : <UserPlus size={15} />}
                   Add

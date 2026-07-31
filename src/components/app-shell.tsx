@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Lock, Loader2, LogOut, Plus, Users } from "lucide-react";
+import { Eye, EyeOff, FileText, KeyRound, Lock, Loader2, LogOut, Plus, Users, X } from "lucide-react";
 import { cn } from "@/lib/format";
 import type { AuthUser } from "@/lib/types";
 
@@ -17,6 +17,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [loginError, setLoginError] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -64,6 +74,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setPassword("");
   }
 
+  async function changePassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordError("");
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match");
+      return;
+    }
+
+    setPasswordSaving(true);
+    const response = await fetch("/api/auth/password", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    const data = (await response.json().catch(() => ({ error: "Unable to change password" }))) as { error?: string };
+    setPasswordSaving(false);
+
+    if (!response.ok) {
+      setPasswordError(data.error ?? "Unable to change password");
+      return;
+    }
+
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordModalOpen(false);
+    alert("Password changed.");
+  }
+
   return (
     <div className="min-h-screen subtle-grid">
       <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
@@ -90,6 +130,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Plus size={16} />
                 <span>New</span>
               </Link>
+              <button type="button" onClick={() => setPasswordModalOpen(true)} className="btn-secondary px-3" title="Change password">
+                <KeyRound size={16} />
+              </button>
               <button type="button" onClick={() => void logout()} className="btn-secondary px-3" title="Logout">
                 <LogOut size={16} />
               </button>
@@ -138,14 +181,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </label>
               <label className="mt-3 block space-y-2">
                 <span className="label">Password</span>
-                <input
-                  className="field"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete="current-password"
-                  required
-                />
+                <PasswordField value={password} onChange={setPassword} autoComplete="current-password" show={showLoginPassword} onToggle={() => setShowLoginPassword((current) => !current)} required />
               </label>
               {loginError ? <p className="mt-4 text-sm font-semibold text-rose-600">{loginError}</p> : null}
               <button className="btn-primary mt-5 w-full" disabled={loggingIn}>
@@ -156,6 +192,83 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </main>
+      {user && passwordModalOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-ink/35 p-4">
+          <form onSubmit={changePassword} className="w-full max-w-sm rounded-md border border-line bg-white p-4 shadow-lift">
+            <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
+              <div>
+                <h2 className="text-lg font-black text-ink">Change password</h2>
+                <p className="mt-1 text-xs font-semibold text-slate-500">{user.displayName}</p>
+              </div>
+              <button
+                type="button"
+                className="grid size-8 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-ink"
+                onClick={() => {
+                  setPasswordModalOpen(false);
+                  setPasswordError("");
+                }}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <label className="mt-4 block space-y-2">
+              <span className="label">Current password</span>
+              <PasswordField value={currentPassword} onChange={setCurrentPassword} autoComplete="current-password" show={showCurrentPassword} onToggle={() => setShowCurrentPassword((current) => !current)} required />
+            </label>
+            <label className="mt-3 block space-y-2">
+              <span className="label">New password</span>
+              <PasswordField value={newPassword} onChange={setNewPassword} autoComplete="new-password" show={showNewPassword} onToggle={() => setShowNewPassword((current) => !current)} required />
+            </label>
+            <label className="mt-3 block space-y-2">
+              <span className="label">Confirm new password</span>
+              <PasswordField value={confirmPassword} onChange={setConfirmPassword} autoComplete="new-password" show={showConfirmPassword} onToggle={() => setShowConfirmPassword((current) => !current)} required />
+            </label>
+            {passwordError ? <p className="mt-3 text-sm font-semibold text-rose-600">{passwordError}</p> : null}
+            <button className="btn-primary mt-4 w-full" disabled={passwordSaving}>
+              {passwordSaving ? <Loader2 className="animate-spin" size={16} /> : <KeyRound size={16} />}
+              Save password
+            </button>
+          </form>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function PasswordField({
+  value,
+  onChange,
+  show,
+  onToggle,
+  autoComplete,
+  required = false
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  show: boolean;
+  onToggle: () => void;
+  autoComplete?: string;
+  required?: boolean;
+}) {
+  return (
+    <span className="relative block">
+      <input
+        className="field pr-10"
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        autoComplete={autoComplete}
+        required={required}
+      />
+      <button
+        type="button"
+        onClick={onToggle}
+        className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-ink"
+        title={show ? "Hide password" : "Show password"}
+      >
+        {show ? <EyeOff size={16} /> : <Eye size={16} />}
+      </button>
+    </span>
   );
 }
