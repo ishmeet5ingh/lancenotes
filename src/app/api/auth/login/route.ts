@@ -3,16 +3,21 @@ import { createSessionToken, sessionCookieName, sessionCookieOptions } from "@/l
 import { verifyUserCredentials } from "@/lib/store";
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => null)) as { username?: unknown; password?: unknown } | null;
-  const username = typeof body?.username === "string" ? body.username : "";
-  const password = typeof body?.password === "string" ? body.password : "";
+  try {
+    const body = (await request.json().catch(() => null)) as { username?: unknown; password?: unknown } | null;
+    const username = typeof body?.username === "string" ? body.username : "";
+    const password = typeof body?.password === "string" ? body.password : "";
 
-  const user = await verifyUserCredentials(username, password);
-  if (!user) {
-    return NextResponse.json({ error: "Invalid user ID or password" }, { status: 401 });
+    const user = await verifyUserCredentials(username, password);
+    if (!user) {
+      return NextResponse.json({ error: "Invalid user ID or password" }, { status: 401 });
+    }
+
+    const response = NextResponse.json({ user });
+    response.cookies.set(sessionCookieName, createSessionToken(user), sessionCookieOptions());
+    return response;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to sign in";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const response = NextResponse.json({ user });
-  response.cookies.set(sessionCookieName, createSessionToken(user), sessionCookieOptions());
-  return response;
 }

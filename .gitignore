@@ -4,6 +4,11 @@ out
 dist
 .env
 .env*.local
+.env.production
+.env.development
 .data
+.vercel
+*.tsbuildinfo
+coverage
 *.log
 .DS_Store

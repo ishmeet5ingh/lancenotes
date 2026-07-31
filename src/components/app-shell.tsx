@@ -34,21 +34,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setLoggingIn(true);
     setLoginError("");
 
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password })
-    });
-    const data = (await response.json()) as { user?: AuthUser; error?: string };
-    setLoggingIn(false);
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      const data = (await response.json().catch(() => ({ error: "Unable to sign in" }))) as { user?: AuthUser; error?: string };
 
-    if (!response.ok || !data.user) {
-      setLoginError(data.error ?? "Unable to sign in");
-      return;
+      if (!response.ok || !data.user) {
+        setLoginError(data.error ?? "Unable to sign in");
+        return;
+      }
+
+      setUser(data.user);
+      setPassword("");
+    } catch {
+      setLoginError("Unable to sign in");
+    } finally {
+      setLoggingIn(false);
     }
-
-    setUser(data.user);
-    setPassword("");
   }
 
   async function logout() {
