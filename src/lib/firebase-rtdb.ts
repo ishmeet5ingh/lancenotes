@@ -22,12 +22,25 @@ function getFirebaseConfig() {
   const databaseUrl = process.env.FIREBASE_DATABASE_URL?.trim().replace(/\/$/, "");
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const missing = [
+    ["FIREBASE_PROJECT_ID", projectId],
+    ["FIREBASE_DATABASE_URL", databaseUrl],
+    ["FIREBASE_CLIENT_EMAIL", clientEmail],
+    ["FIREBASE_PRIVATE_KEY", privateKey]
+  ]
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
 
-  if (!projectId || !databaseUrl || !clientEmail || !privateKey) {
-    throw new Error("Firebase environment variables are not configured");
+  if (missing.length > 0) {
+    throw new Error(`Missing Firebase environment variables: ${missing.join(", ")}`);
   }
 
-  return { projectId, databaseUrl, clientEmail, privateKey };
+  return {
+    projectId: projectId as string,
+    databaseUrl: databaseUrl as string,
+    clientEmail: clientEmail as string,
+    privateKey: privateKey as string
+  };
 }
 
 function createServiceAccountJwt() {
