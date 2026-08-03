@@ -330,7 +330,7 @@ export function ProjectsClient() {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-end gap-3">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     {isAdmin ? (
                       <>
                         <button
@@ -367,7 +367,7 @@ export function ProjectsClient() {
 
       {isAdmin && usersModalOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-ink/35 p-4">
-          <div className="w-full max-w-2xl rounded-md bg-white shadow-lift">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-hidden rounded-md bg-white shadow-lift">
             <div className="flex items-start justify-between gap-4 border-b border-line p-4">
               <div>
                 <h2 className="text-lg font-black text-ink">{accessProject ? `Access: ${accessProject.title}` : "Users"}</h2>

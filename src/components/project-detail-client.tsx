@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Edit3, Eye, EyeOff, FilePlus2, GripVertical, Heading2, ImageIcon, ListPlus, Loader2, Shield, Trash2, UserPlus, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Edit3, Eye, EyeOff, FilePlus2, GripVertical, Heading2, ImageIcon, List, ListPlus, Loader2, Shield, Trash2, UserPlus, X } from "lucide-react";
 import { EmptyState } from "./empty-state";
 import { friendlyDateTime, cn } from "@/lib/format";
 import type { AuthUser, Note, NoteLineMeta, Project, User } from "@/lib/types";
@@ -110,6 +110,7 @@ export function ProjectDetailClient({ id }: { id: string }) {
   const [newUserName, setNewUserName] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [showNewUserPassword, setShowNewUserPassword] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const localDraftRef = useRef(false);
@@ -293,6 +294,7 @@ export function ProjectDetailClient({ id }: { id: string }) {
     setLineMeta(normalizeLineMeta(note.description, note.lineMeta));
     localDraftRef.current = false;
     setSaveStatus("idle");
+    setSidebarOpen(false);
   }
 
   async function createNote() {
@@ -481,13 +483,28 @@ export function ProjectDetailClient({ id }: { id: string }) {
 
   return (
     <div className="h-full overflow-hidden border-y border-line bg-white shadow-sm">
-      <div className="flex h-full flex-col md:flex-row">
-        <aside className="flex h-full shrink-0 flex-col border-b border-line bg-slate-50 md:w-60 md:border-b-0 md:border-r">
+      <div className="flex h-full min-h-0 flex-col md:flex-row">
+        <aside
+          className={cn(
+            "max-h-[42dvh] shrink-0 flex-col border-b border-line bg-slate-50 md:flex md:h-full md:max-h-none md:w-60 md:border-b-0 md:border-r",
+            sidebarOpen ? "flex" : "hidden"
+          )}
+        >
           <div className="border-b border-line p-3">
-            <Link href="/projects" className="mb-3 inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-ink">
-              <ArrowLeft size={15} />
-              All notes
-            </Link>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <Link href="/projects" className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-ink">
+                <ArrowLeft size={15} />
+                All notes
+              </Link>
+              <button
+                type="button"
+                className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-white hover:text-ink md:hidden"
+                onClick={() => setSidebarOpen(false)}
+                title="Hide notes"
+              >
+                <X size={17} />
+              </button>
+            </div>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h1 className="truncate text-lg font-black text-ink">{project.title}</h1>
@@ -507,7 +524,7 @@ export function ProjectDetailClient({ id }: { id: string }) {
             ) : null}
           </div>
 
-          <div className="max-h-72 flex-1 overflow-y-auto p-2 md:max-h-none">
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
             {notes.length === 0 ? (
               <p className="p-3 text-sm text-slate-500">No notes yet. Create one to start writing.</p>
             ) : (
@@ -544,7 +561,7 @@ export function ProjectDetailClient({ id }: { id: string }) {
           ) : null}
         </aside>
 
-        <main className="flex min-w-0 flex-1 flex-col">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           {selected ? (
             <>
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2">
@@ -552,7 +569,11 @@ export function ProjectDetailClient({ id }: { id: string }) {
                   <p className="text-xs font-semibold text-slate-500">Updated {friendlyDateTime(selected.updatedAt)}</p>
                   {selectedCanContribute ? <SaveIndicator status={saveStatus} saving={saving} /> : <span className="text-xs font-bold text-slate-400">Read only</span>}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button className="btn-secondary px-2.5 py-1.5 md:hidden" onClick={() => setSidebarOpen(true)} title="Show notes">
+                    <List size={15} />
+                    Notes
+                  </button>
                   {isAdmin ? (
                     <button className="btn-secondary px-2.5 py-1.5" onClick={openNoteAccess} title="Manage note access">
                       <Shield size={15} />
@@ -614,7 +635,7 @@ export function ProjectDetailClient({ id }: { id: string }) {
       </div>
       {isAdmin && noteAccessOpen && selected ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-ink/35 p-4">
-          <div className="w-full max-w-2xl rounded-md bg-white shadow-lift">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-hidden rounded-md bg-white shadow-lift">
             <div className="flex items-start justify-between gap-4 border-b border-line p-4">
               <div>
                 <h2 className="text-lg font-black text-ink">Access: {selected.title}</h2>
@@ -1165,7 +1186,7 @@ function ChecklistEditor({
                   readOnly={!rowCanEdit}
                   placeholder="Section title"
                 />
-                <span className="shrink-0 text-[11px] font-bold text-slate-400">by {ownerName}</span>
+                <span className="hidden shrink-0 text-[11px] font-bold text-slate-400 sm:inline">by {ownerName}</span>
                 {rowCanEdit ? (
                   <button
                     type="button"
@@ -1236,7 +1257,7 @@ function ChecklistEditor({
                   readOnly={!rowCanEdit}
                   placeholder="Checklist item"
                 />
-                <span className="mt-1.5 shrink-0 text-[11px] font-bold leading-6 text-slate-400">by {ownerName}</span>
+                <span className="mt-1.5 hidden shrink-0 text-[11px] font-bold leading-6 text-slate-400 sm:inline">by {ownerName}</span>
                 {rowCanEdit ? (
                   <label
                     className="mt-1 grid size-7 shrink-0 cursor-pointer place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-ink"
@@ -1265,12 +1286,12 @@ function ChecklistEditor({
                 key={index}
                 onDragOver={(event) => handleDragOver(event, index)}
                 onDrop={(event) => handleDrop(event, row)}
-                className={cn("ml-24 flex items-start gap-3 py-2", rowDropClass(index))}
+                className={cn("flex flex-wrap items-start gap-3 py-2 pl-8 sm:ml-24 sm:pl-0", rowDropClass(index))}
               >
-                <a href={image.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border border-line bg-cloud shadow-sm transition hover:shadow-soft">
-                  <img src={image.url} alt="Checklist item upload" className="h-28 w-44 object-cover" />
+                <a href={image.url} target="_blank" rel="noreferrer" className="block max-w-full overflow-hidden rounded-md border border-line bg-cloud shadow-sm transition hover:shadow-soft sm:inline-block">
+                  <img src={image.url} alt="Checklist item upload" className="h-28 w-44 max-w-full object-cover" />
                 </a>
-                <span className="mt-1 shrink-0 text-[11px] font-bold text-slate-400">by {ownerName}</span>
+                <span className="mt-1 shrink-0 text-[11px] font-bold text-slate-400 sm:ml-3">by {ownerName}</span>
                 {rowCanEdit ? (
                   <button
                     type="button"
@@ -1316,7 +1337,7 @@ function ChecklistEditor({
                 readOnly={!rowCanEdit}
                 placeholder={index === 0 ? "Start writing..." : ""}
               />
-              <span className="mt-1.5 shrink-0 text-[11px] font-bold leading-6 text-slate-400">by {ownerName}</span>
+              <span className="mt-1.5 hidden shrink-0 text-[11px] font-bold leading-6 text-slate-400 sm:inline">by {ownerName}</span>
             </div>
           );
         })}

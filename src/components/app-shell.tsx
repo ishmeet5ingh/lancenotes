@@ -105,8 +105,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen subtle-grid">
-      <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
+    <div className={cn("flex flex-col subtle-grid", isEditor ? "h-[100dvh] overflow-hidden" : "min-h-[100dvh]")}>
+      <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <Link href="/projects" className="flex items-center gap-2.5">
             <span className="grid size-8 place-items-center rounded-md bg-ink text-white shadow-sm">
@@ -116,7 +116,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
 
           {user ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <span className="hidden rounded-md border border-line bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600 sm:inline-flex">
                 {user.displayName}
               </span>
@@ -142,8 +142,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
       <main
         className={cn(
-          "mx-auto w-full",
-          isEditor ? "h-[calc(100vh-57px)] px-0 py-0" : "max-w-7xl px-4 py-5 sm:px-6 lg:px-8"
+          "mx-auto w-full flex-1",
+          isEditor ? "min-h-0 overflow-hidden px-0 py-0" : "max-w-7xl px-4 py-5 sm:px-6 lg:px-8"
         )}
       >
         {loading ? (
