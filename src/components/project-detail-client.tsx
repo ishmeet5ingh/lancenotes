@@ -743,6 +743,64 @@ function SaveIndicator({ status, saving }: { status: "idle" | "saving" | "saved"
   return <span className="text-xs font-semibold text-slate-400">Autosaves when you stop typing</span>;
 }
 
+function sanitizeEditorLine(value: string) {
+  return value.replace(/\r?\n/g, " ");
+}
+
+function AutoResizeTextarea({
+  value,
+  className,
+  onChange,
+  onFocus,
+  onKeyDown,
+  onPaste,
+  readOnly,
+  placeholder,
+  inputRef
+}: {
+  value: string;
+  className: string;
+  onChange: (value: string) => void;
+  onFocus?: () => void;
+  onKeyDown?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onPaste?: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void;
+  readOnly?: boolean;
+  placeholder?: string;
+  inputRef?: (element: HTMLTextAreaElement | null) => void;
+}) {
+  const localRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const resize = useCallback(() => {
+    const element = localRef.current;
+    if (!element) return;
+    element.style.height = "0px";
+    element.style.height = `${element.scrollHeight}px`;
+  }, []);
+
+  useEffect(() => {
+    resize();
+  }, [resize, value]);
+
+  return (
+    <textarea
+      ref={(element) => {
+        localRef.current = element;
+        inputRef?.(element);
+      }}
+      className={className}
+      value={value}
+      rows={1}
+      onFocus={onFocus}
+      onChange={(event) => onChange(sanitizeEditorLine(event.target.value))}
+      onInput={resize}
+      onKeyDown={onKeyDown}
+      onPaste={onPaste}
+      readOnly={readOnly}
+      placeholder={placeholder}
+    />
+  );
+}
+
 function parseTaskLine(line: string) {
   const match = line.match(/^(\s*)\*\s*(?:\[(x|X| )\]\s*)?(.*)$/);
   if (!match) return null;
@@ -779,7 +837,7 @@ function formatImageLine(image: InlineImage) {
   return `  ![image](${image.url}${image.publicId ? ` "${image.publicId}"` : ""})`;
 }
 
-function getClipboardImageFile(event: React.ClipboardEvent<HTMLInputElement>) {
+function getClipboardImageFile(event: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
   const items = Array.from(event.clipboardData.items);
   const imageItem = items.find((item) => item.kind === "file" && item.type.startsWith("image/"));
   return imageItem?.getAsFile() ?? null;
@@ -831,7 +889,7 @@ function ChecklistEditor({
 }) {
   const lines = value.length ? value.split("\n") : [""];
   const normalizedMeta = normalizeLineMeta(value, lineMeta);
-  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const inputRefs = useRef<Array<HTMLInputElement | HTMLTextAreaElement | null>>([]);
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [draggedRange, setDraggedRange] = useState<{ start: number; end: number } | null>(null);
@@ -1124,7 +1182,7 @@ function ChecklistEditor({
           const rowMeta = normalizedMeta[index];
           const rowCanEdit = editableLine(index);
           const ownerName = rowMeta?.createdByUserName ?? "Admin";
-          const commonKeyHandler = (event: React.KeyboardEvent<HTMLInputElement>) => {
+          const commonKeyHandler = (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
             if (!rowCanEdit) return;
             if (event.key === "Enter") {
               event.preventDefault();
@@ -1174,14 +1232,14 @@ function ChecklistEditor({
                 >
                   {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                 </button>
-                <input
-                  ref={(element) => {
+                <AutoResizeTextarea
+                  inputRef={(element) => {
                     inputRefs.current[index] = element;
                   }}
-                  className="min-w-0 flex-1 border-none bg-transparent py-1 text-base font-black leading-8 text-ink outline-none placeholder:text-slate-300"
+                  className="min-h-8 min-w-0 flex-1 resize-none overflow-hidden whitespace-pre-wrap break-words border-none bg-transparent py-1 text-sm font-black leading-6 text-ink outline-none placeholder:text-slate-300"
                   value={section.text}
                   onFocus={() => setFocusIndex(index)}
-                  onChange={(event) => updateLine(index, formatSectionLine(event.target.value))}
+                  onChange={(nextValue) => updateLine(index, formatSectionLine(nextValue))}
                   onKeyDown={commonKeyHandler}
                   readOnly={!rowCanEdit}
                   placeholder="Section title"
@@ -1236,17 +1294,17 @@ function ChecklistEditor({
                 >
                   <Check size={13} strokeWidth={3} />
                 </button>
-                <input
-                  ref={(element) => {
+                <AutoResizeTextarea
+                  inputRef={(element) => {
                     inputRefs.current[index] = element;
                   }}
                   className={cn(
-                    "min-w-0 flex-1 border-none bg-transparent py-0.5 text-base leading-8 outline-none placeholder:text-slate-300",
+                    "min-h-7 min-w-0 flex-1 resize-none overflow-hidden whitespace-pre-wrap break-words border-none bg-transparent py-0.5 text-sm leading-6 outline-none placeholder:text-slate-300",
                     task.checked && "text-slate-500"
                   )}
                   value={task.text}
                   onFocus={() => setFocusIndex(index)}
-                  onChange={(event) => updateLine(index, formatTaskLine(event.target.value, task.checked, task.indent))}
+                  onChange={(nextValue) => updateLine(index, formatTaskLine(nextValue, task.checked, task.indent))}
                   onPaste={(event) => {
                     const image = getClipboardImageFile(event);
                     if (!image) return;
@@ -1325,14 +1383,14 @@ function ChecklistEditor({
               >
                 <GripVertical size={14} />
               </button>
-              <input
-                ref={(element) => {
+              <AutoResizeTextarea
+                inputRef={(element) => {
                   inputRefs.current[index] = element;
                 }}
-                className="min-w-0 flex-1 border-none bg-transparent py-0.5 text-base leading-8 outline-none placeholder:text-slate-300"
+                className="min-h-7 min-w-0 flex-1 resize-none overflow-hidden whitespace-pre-wrap break-words border-none bg-transparent py-0.5 text-sm leading-6 outline-none placeholder:text-slate-300"
                 value={line}
                 onFocus={() => setFocusIndex(index)}
-                onChange={(event) => updateLine(index, event.target.value)}
+                onChange={(nextValue) => updateLine(index, nextValue)}
                 onKeyDown={commonKeyHandler}
                 readOnly={!rowCanEdit}
                 placeholder={index === 0 ? "Start writing..." : ""}
