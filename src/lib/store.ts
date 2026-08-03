@@ -159,6 +159,20 @@ async function writeFirebaseUsers(users: StoredUser[]) {
   });
 }
 
+async function patchFirebaseProject(projectIndex: number, input: Partial<Project>) {
+  await firebaseRequest(`${firebaseAppPaths.projects}/${projectIndex}`, {
+    method: "PATCH",
+    body: JSON.stringify(input)
+  });
+}
+
+async function patchFirebaseNote(projectIndex: number, noteIndex: number, input: Partial<Note>) {
+  await firebaseRequest(`${firebaseAppPaths.projects}/${projectIndex}/notes/${noteIndex}`, {
+    method: "PATCH",
+    body: JSON.stringify(input)
+  });
+}
+
 function ensureProjectTitle(input: Pick<ProjectInput, "title">) {
   if (!input.title?.trim()) {
     throw new Error("Project title is required");
@@ -799,12 +813,18 @@ export async function addNote(projectId: string, input: NoteInput): Promise<Proj
 export async function updateNote(projectId: string, noteId: string, input: Partial<NoteInput>): Promise<Project | null> {
   if (isFirebaseStorageEnabled()) {
     const projects = await readFirebaseProjects();
-    const project = projects.find((item) => item._id === projectId);
-    const note = project?.notes.find((item) => item._id === noteId);
+    const projectIndex = projects.findIndex((item) => item._id === projectId);
+    const project = projects[projectIndex];
+    const noteIndex = project?.notes.findIndex((item) => item._id === noteId) ?? -1;
+    const note = noteIndex >= 0 ? project?.notes[noteIndex] : undefined;
     if (!project || !note) return null;
-    Object.assign(note, input, { updatedAt: nowIso() });
-    project.updatedAt = nowIso();
-    await writeFirebaseProjects(projects);
+    const updatedAt = nowIso();
+    Object.assign(note, input, { updatedAt });
+    project.updatedAt = updatedAt;
+    await Promise.all([
+      patchFirebaseNote(projectIndex, noteIndex, { ...input, updatedAt }),
+      patchFirebaseProject(projectIndex, { updatedAt })
+    ]);
     return project;
   }
 

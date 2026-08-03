@@ -53,6 +53,43 @@ function canEditLineForUser(user: AuthUser | null, lineMeta?: NoteLineMeta) {
   return lineMeta.createdByUserId === user._id;
 }
 
+function noteUpdatedAtMs(note: Note | undefined) {
+  const time = note?.updatedAt ? Date.parse(note.updatedAt) : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function projectUpdatedAtMs(project: Project | null | undefined) {
+  const time = project?.updatedAt ? Date.parse(project.updatedAt) : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function mergeProjectSnapshot(current: Project | null, incoming: Project) {
+  if (!current || current._id !== incoming._id) return incoming;
+
+  const currentNotes = new Map(current.notes.map((note) => [note._id, note]));
+  const incomingNoteIds = new Set(incoming.notes.map((note) => note._id));
+  const notes = incoming.notes.map((note) => {
+    const currentNote = currentNotes.get(note._id);
+    return currentNote && noteUpdatedAtMs(currentNote) > noteUpdatedAtMs(note) ? currentNote : note;
+  });
+
+  if (projectUpdatedAtMs(current) > projectUpdatedAtMs(incoming)) {
+    for (const note of current.notes) {
+      if (!incomingNoteIds.has(note._id)) notes.push(note);
+    }
+  }
+
+  return {
+    ...incoming,
+    updatedAt: projectUpdatedAtMs(current) > projectUpdatedAtMs(incoming) ? current.updatedAt : incoming.updatedAt,
+    notes
+  };
+}
+
+function lineMetaFingerprint(value: NoteLineMeta[]) {
+  return JSON.stringify(value);
+}
+
 export function ProjectDetailClient({ id }: { id: string }) {
   const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
@@ -76,10 +113,37 @@ export function ProjectDetailClient({ id }: { id: string }) {
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const localDraftRef = useRef(false);
+  const draftVersionRef = useRef(0);
+  const saveRequestSeqRef = useRef(0);
+  const latestProjectRef = useRef<Project | null>(null);
+  const latestEditorRef = useRef({
+    selectedId: null as string | null,
+    title: "",
+    description: "",
+    lineMetaKey: lineMetaFingerprint([] as NoteLineMeta[])
+  });
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
   }, [selectedId]);
+
+  useEffect(() => {
+    latestProjectRef.current = project;
+  }, [project]);
+
+  useEffect(() => {
+    latestEditorRef.current = {
+      selectedId,
+      title,
+      description,
+      lineMetaKey: lineMetaFingerprint(lineMeta)
+    };
+  }, [description, lineMeta, selectedId, title]);
+
+  const markLocalDraft = useCallback(() => {
+    localDraftRef.current = true;
+    draftVersionRef.current += 1;
+  }, []);
 
   const syncEditorFromProject = useCallback((nextProject: Project) => {
     const nextNotes = [...(nextProject.notes ?? [])].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
@@ -107,17 +171,23 @@ export function ProjectDetailClient({ id }: { id: string }) {
     }
   }, []);
 
+  const applyProjectSnapshot = useCallback((nextProject: Project) => {
+    const mergedProject = mergeProjectSnapshot(latestProjectRef.current, nextProject);
+    latestProjectRef.current = mergedProject;
+    setProject(mergedProject);
+    syncEditorFromProject(mergedProject);
+  }, [syncEditorFromProject]);
+
   useEffect(() => {
     fetch(`/api/projects/${id}`)
       .then((response) => response.json())
       .then((data) => {
         const loaded = data.project ?? null;
         setUser(data.user ?? null);
-        setProject(loaded);
-        if (loaded) syncEditorFromProject(loaded);
+        if (loaded) applyProjectSnapshot(loaded);
       })
       .finally(() => setLoading(false));
-  }, [id, syncEditorFromProject]);
+  }, [applyProjectSnapshot, id]);
 
   useEffect(() => {
     if (typeof EventSource === "undefined") return;
@@ -132,13 +202,12 @@ export function ProjectDetailClient({ id }: { id: string }) {
       if (data.error) return;
       if (!data.project) return;
 
-      setProject(data.project);
-      syncEditorFromProject(data.project);
+      applyProjectSnapshot(data.project);
       setLoading(false);
     };
 
     return () => events.close();
-  }, [id, router, syncEditorFromProject]);
+  }, [applyProjectSnapshot, id, router]);
 
   const notes = useMemo(() => {
     return [...(project?.notes ?? [])].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
@@ -155,6 +224,8 @@ export function ProjectDetailClient({ id }: { id: string }) {
     if (!project) return false;
     const note = project.notes.find((item) => item._id === noteId);
     if (!note || !canContributeToNoteForUser(user, project, note)) return false;
+    const startedDraftVersion = draftVersionRef.current;
+    const savedLineMetaKey = lineMetaFingerprint(nextLineMeta);
 
     const response = await fetch(`/api/projects/${project._id}/notes/${noteId}`, {
       method: "PATCH",
@@ -170,11 +241,20 @@ export function ProjectDetailClient({ id }: { id: string }) {
       alert(data.error ?? "Unable to save note");
       return false;
     }
-    setProject(data.project);
-    localDraftRef.current = false;
-    syncEditorFromProject(data.project);
-    return true;
-  }, [project, syncEditorFromProject, user]);
+    const latestEditor = latestEditorRef.current;
+    const draftChanged =
+      draftVersionRef.current !== startedDraftVersion ||
+      latestEditor.selectedId !== noteId ||
+      latestEditor.title !== nextTitle ||
+      latestEditor.description !== nextDescription ||
+      latestEditor.lineMetaKey !== savedLineMetaKey;
+
+    if (!draftChanged) {
+      localDraftRef.current = false;
+    }
+    applyProjectSnapshot(data.project);
+    return draftChanged ? "superseded" : "saved";
+  }, [applyProjectSnapshot, project, user]);
 
   useEffect(() => {
     if (!project || !selected || !selectedCanContribute) return;
@@ -184,15 +264,17 @@ export function ProjectDetailClient({ id }: { id: string }) {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
 
     autoSaveTimer.current = setTimeout(async () => {
+      const saveRequestSeq = ++saveRequestSeqRef.current;
       setSaving(true);
       setSaveStatus("saving");
       const saved = await persistNote(selected._id, title, description, lineMeta);
-      setSaving(false);
+      if (saveRequestSeq === saveRequestSeqRef.current) setSaving(false);
       if (!saved) {
-        setSaveStatus("error");
+        if (saveRequestSeq === saveRequestSeqRef.current) setSaveStatus("error");
         return;
       }
-      setSaveStatus("saved");
+      if (saveRequestSeq !== saveRequestSeqRef.current) return;
+      setSaveStatus(saved === "saved" ? "saved" : "idle");
     }, 700);
 
     return () => {
@@ -489,7 +571,7 @@ export function ProjectDetailClient({ id }: { id: string }) {
                   value={title}
                   onChange={(event) => {
                     if (selectedCanEditNote) {
-                      localDraftRef.current = true;
+                      markLocalDraft();
                       setTitle(event.target.value);
                     }
                   }}
@@ -504,7 +586,7 @@ export function ProjectDetailClient({ id }: { id: string }) {
                   value={description}
                   onChange={(nextValue, nextLineMeta) => {
                     if (selectedCanContribute) {
-                      localDraftRef.current = true;
+                      markLocalDraft();
                       setDescription(nextValue);
                       setLineMeta(nextLineMeta);
                     }
